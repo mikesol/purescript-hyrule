@@ -18,7 +18,7 @@ import Data.Maybe (Maybe(..))
 import Data.Newtype (under)
 import Data.Op (Op(..))
 import Data.Traversable (foldr, for_, sequence)
-import Data.Tuple (Tuple(..))
+import Data.Tuple (Tuple(..), uncurry)
 import Data.Tuple.Nested ((/\))
 import Debug (spy)
 import Effect (Effect)
@@ -28,7 +28,7 @@ import Effect.Ref as Ref
 import Effect.Unsafe (unsafePerformEffect)
 import FRP.Event (justNone, justOne, makeEvent, memoize, merge, subscribe)
 import FRP.Event as Event
-import FRP.Event.Class (fold, keepLatest, once, sampleOnRight)
+import FRP.Event.Class (fold, gate, keepLatest, once, sampleOnRight)
 import FRP.Event.Time (throttle, withTime)
 import FRP.Poll as OptimizedPoll
 import FRP.Poll.Unoptimized as UnoptimizedPoll
@@ -524,6 +524,26 @@ suite10 name { setup, prime, create, toEvent, underTest } = do
       v `shouldEqual` (Array.reverse [ Tuple 0 42, Tuple 1 8, Tuple 2 15 ])
       u
 
+suite11 name { setup, prime, create0, create1, toEvent, underTest } = do
+  describe name do
+    it "should gate" $ liftEffect do
+      r <- liftST $ STRef.new []
+      ep <- liftST setup
+      testing0 <- liftST create0
+      testing1 <- liftST create1
+      let toTest = uncurry gate (underTest testing0 testing1)
+      u <- subscribe (toEvent toTest ep) \i ->
+        liftST $ void $ STRef.modify (Array.cons i) r
+      prime ep
+      testing0.push true
+      testing1.push 1
+      testing1.push 2
+      testing0.push false
+      testing1.push 3
+      v <- liftST $ STRef.read r
+      v `shouldEqual` (Array.reverse [ 1, 2 ])
+      u
+
 main :: Effect Unit
 main = do
   launchAff_
@@ -725,6 +745,30 @@ main = do
           , create: OptimizedPoll.create
           , toEvent: \b ep -> OptimizedPoll.sample_ b ep.event
           , underTest: \testing -> testing.poll
+          }
+        suite11 "UnoptimizedPoll"
+          { setup: Event.create
+          , prime: \ep -> ep.push unit
+          , create0: UnoptimizedPoll.create
+          , create1: UnoptimizedPoll.create
+          , toEvent: \b ep -> UnoptimizedPoll.sample_ b ep.event
+          , underTest: \testing0 testing1 -> Tuple testing0.poll testing1.poll
+          }
+        suite11 "OptimizedPoll"
+          { setup: Event.create
+          , prime: \ep -> ep.push unit
+          , create0: OptimizedPoll.create
+          , create1: OptimizedPoll.create
+          , toEvent: \b ep -> OptimizedPoll.sample_ b ep.event
+          , underTest: \testing0 testing1 -> Tuple testing0.poll testing1.poll
+          }
+        suite11 "Event"
+          { setup: pure unit
+          , prime: pure
+          , create0: Event.create
+          , create1: Event.create
+          , toEvent: \e _ -> e
+          , underTest: \testing0 testing1 -> Tuple testing0.event testing1.event
           }
         describe "Unique to Poll" do
           it "should obliterate purity when on a rant" $ liftEffect do

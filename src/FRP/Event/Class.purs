@@ -31,6 +31,7 @@ import Prelude
 
 import Control.Alternative (class Alt, class Plus, (<|>))
 import Data.Compactable (compact)
+import Data.Either (Either(..), either)
 import Data.Filterable (class Filterable, filterMap)
 import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Tuple (Tuple(..), snd)
@@ -130,10 +131,15 @@ gateBy
   -> event a
   -> event b
   -> event b
-gateBy f sampled sampler = compact $
-  (\p x -> if f p x then Just x else Nothing)
-    <$> ((once sampler $> Nothing) <|> Just <$> sampled)
-    <|*> sampler
+gateBy f sampled sampler = compact $ _.maybeB <$> state
+  where
+  state = fold
+    ( \s -> either
+        (\a -> s { maybeA = Just a, maybeB = Nothing })
+        (\b -> if f s.maybeA b then s { maybeB = Just b } else s { maybeB = Nothing })
+    )
+    { maybeA: Nothing, maybeB: Nothing }
+    (Left <$> sampled <|> Right <$> sampler)
 
 -- | Fold over values received from some `Event`, creating a new `Event`.
 fold :: forall event a b. IsEvent event => (b -> a -> b) -> b -> event a -> event b
