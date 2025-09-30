@@ -12,6 +12,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+          cache: 'pnpm'
+
       - uses: pnpm/action-setup@v4
         name: Install pnpm
         id: pnpm-install
@@ -24,7 +30,7 @@ jobs:
         run: |
           echo "STORE_PATH=$(pnpm store path)" >> $GITHUB_OUTPUT
 
-      - name: Cache purescript dependencies
+      - name: Cache purescript + pnpm store
         uses: actions/cache@v4
         with:
           path: |
@@ -38,8 +44,9 @@ jobs:
             ${{ runner.os }}-pnpm-
             ${{ runner.os }}-spago-
 
-      - name: Install esbuild
-        run: pnpm install -g esbuild purs-backend-es
+      - name: Add esbuild and purs-backend-es as dev deps (CI-only)
+        # install them locally instead of globally to avoid global pnpm issues
+        run: pnpm add -D esbuild@latest purs-backend-es@latest
 
       - name: Install
         run: pnpm i
