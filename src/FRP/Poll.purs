@@ -197,6 +197,10 @@ merge a = case foldr go { l: [], m: [], r: [] } a of
   { l, m: [], r: [] } -> OnlyPure l
   { l: [], m, r: [] } -> OnlyEvent (Event.merge m)
   { l: [], m: [], r } -> OnlyPoll (Poll.merge r)
+  -- PureAndEvent is cheaper than PureAndPoll in pump': no bang event needed
+  { l, m, r: [] } -> PureAndEvent l (Event.merge m)
+  -- No events: avoid sham wrapper
+  { l, m: [], r } -> PureAndPoll l (Poll.merge r)
   -- todo: is it problematic that this is out of l2r order?
   { l, m, r } -> PureAndPoll l (Poll.sham (Event.merge m) <|> Poll.merge r)
   where
