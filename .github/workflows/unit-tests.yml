@@ -24,11 +24,15 @@ jobs:
             ${{ hashFiles('pnpm-lock.yaml') }}-
             ${{ hashFiles('spago.yaml') }}
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
       - uses: pnpm/action-setup@v4
         name: Install pnpm
         id: pnpm-install
         with:
-          version: 7.13.2
+          version: 9
           run_install: false
 
       - name: Get pnpm store directory
